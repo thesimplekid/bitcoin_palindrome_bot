@@ -154,19 +154,12 @@ fn last_pal_height(height: u64) -> u64 {
 async fn main() {
     nostr_bot::init_logger();
 
-    // let mut secret = std::fs::read_to_string("secret").unwrap();
-    // secret.pop(); // Remove newline
     let secret = env::var("SECRET_KEY").unwrap();
     let keypair = nostr_bot::keypair_from_secret(&secret);
 
-    let relays = vec![
-        "wss://nostr-pub.wellorder.net",
-        "wss://relay.nostr.info",
-        "wss://relay.damus.io",
-        "wss://nostr.delo.software",
-        "wss://nostr.zaprite.io",
-        "wss://nostr.zebedee.cloud",
-    ];
+    let relays = env::var("RELAYS").unwrap();
+
+    let relays = serde_json::from_str::<Vec<&str>>(&relays).unwrap();
 
     let last_block_hash = mempool::block_tip_hash().await.unwrap();
 
