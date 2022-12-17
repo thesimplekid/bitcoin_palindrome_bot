@@ -14,3 +14,6 @@
 *.swp
 
 secret
+
+deploy.fish
+fly.toml

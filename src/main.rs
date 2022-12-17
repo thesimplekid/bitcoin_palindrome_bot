@@ -1,10 +1,10 @@
 use chrono::{NaiveDateTime, TimeZone, Utc};
-use num_format::{Locale, ToFormattedString};
-use std::fmt::Write;
-
 use nostr_bot::{
     log::debug, tokio, unix_timestamp, wrap, Command, Event, EventNonSigned, FunctorType,
 };
+use num_format::{Locale, ToFormattedString};
+use std::env;
+use std::fmt::Write;
 
 mod mempool;
 
@@ -25,7 +25,7 @@ async fn get_new_blocks(
 ) -> Result<(String, Vec<serde_json::Value>), String> {
     let current_block_hash = mempool::block_tip_hash()
         .await
-        .map_err(|e| format!("Error getting tip hash: {}", e))?;
+        .map_err(|e| format!("Error getting tip hash: {e}"))?;
 
     debug!(
         "last_block_hash: {}, current_block_hash: {}",
@@ -37,10 +37,10 @@ async fn get_new_blocks(
     while block_hash != last_block_hash {
         let block_raw = mempool::get_block(&block_hash)
             .await
-            .map_err(|e| format!("Error getting block: {}", e))?;
+            .map_err(|e| format!("Error getting block: {e}"))?;
         debug!("block_raw: >{}<", block_raw);
         let block: serde_json::Value = serde_json::from_str(&block_raw)
-            .map_err(|e| format!("Error parsing the block: {}", e))?;
+            .map_err(|e| format!("Error parsing the block: {e}"))?;
         block_hash = block["previousblockhash"].to_string().replace('\"', "");
         blocks.push(block);
     }
@@ -74,16 +74,14 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> EventNonSigned {
             true => {
                 writeln!(
                     content,
-                    "Got a newly mined palindrome block: {}",
-                    block_height
+                    "Got a newly mined palindrome block :) !: {block_height}"
                 )
                 .unwrap();
             }
             false => {
                 writeln!(
                     content,
-                    "Got newly mined block but it wasn't a palindrome :( : {}",
-                    block_height
+                    "Got newly mined block but it wasn't a palindrome :( : {block_height}",
                 )
                 .unwrap();
             }
@@ -91,15 +89,16 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> EventNonSigned {
         writeln!(content, "Txid: {}", block["id"]).unwrap();
         writeln!(
             content,
-            "It has been {} blocks since the last palindrome block",
-            block_height - last_pal_height
+            "It has been {} blocks since the last palindrome block {}",
+            block_height - last_pal_height,
+            last_pal_height
         )
         .unwrap();
+        let blocks_to_next = next_pal_height - block_height;
+        let min_to_next = blocks_to_next * 10;
         writeln!(
             content,
-            "The next palindrome block will be {}, in {} blocks",
-            next_pal_height,
-            next_pal_height - block_height
+            "The next palindrome block will be {next_pal_height}, in {blocks_to_next} blocks roughly {min_to_next} minutes"
         )
         .unwrap();
         let block_url = format!(
@@ -155,8 +154,9 @@ fn last_pal_height(height: u64) -> u64 {
 async fn main() {
     nostr_bot::init_logger();
 
-    let mut secret = std::fs::read_to_string("secret").unwrap();
-    secret.pop(); // Remove newline
+    // let mut secret = std::fs::read_to_string("secret").unwrap();
+    // secret.pop(); // Remove newline
+    let secret = env::var("SECRET_KEY").unwrap();
     let keypair = nostr_bot::keypair_from_secret(&secret);
 
     let relays = vec![
@@ -165,18 +165,10 @@ async fn main() {
         "wss://relay.damus.io",
         "wss://nostr.delo.software",
         "wss://nostr.zaprite.io",
-        "wss://nostr.zebedee.cloud"
+        "wss://nostr.zebedee.cloud",
     ];
 
-    let args = std::env::args().collect::<Vec<_>>();
-
     let last_block_hash = mempool::block_tip_hash().await.unwrap();
-
-    let last_block_height = mempool::block_tip_height()
-        .await
-        .unwrap()
-        .parse::<u64>()
-        .unwrap();
 
     let state = nostr_bot::wrap_state(Info {
         last_block_hash,
