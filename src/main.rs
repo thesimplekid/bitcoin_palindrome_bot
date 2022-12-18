@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, TimeZone, Utc};
+use dotenvy::dotenv;
 use nostr_bot::{
     log::debug, tokio, unix_timestamp, wrap, Command, Event, EventNonSigned, FunctorType,
 };
@@ -65,6 +65,13 @@ async fn uptime(event: Event, state: State) -> EventNonSigned {
     )
 }
 
+fn convert_minutes(minutes: u64) -> (u64, u64, u64) {
+    let days = minutes / 1440;
+    let hours = (minutes % 1440) / 60;
+    let remaining_minutes = minutes % 60;
+    (days, hours, remaining_minutes)
+}
+
 fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
     let mut content = "".to_string(); // format!("Got {} newly mined block(s):\n", blocks.len());
     let mut tags = vec![vec!["t".to_string(), "bitcoin".to_string()]];
@@ -89,7 +96,7 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
             }
         }
         writeln!(content)?;
-        
+
         let blocks_since = block_height - last_pal_height;
         writeln!(
             content,
@@ -100,15 +107,14 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
 
         let blocks_to_next = next_pal_height - block_height;
         let min_to_next = blocks_to_next * 10;
-        let hours = min_to_next / 60;
-        let minutes = min_to_next % 60;
+        let (days, hours, minutes) = convert_minutes(min_to_next);
         writeln!(
             content,
-            "The next palindrome block will be {}, in {} blocks roughly {hours} hours and {minutes} minutes",
+            "The next palindrome block will be {}, in {} blocks roughly {days} day(s) {hours} hour(s) and {minutes} minutes",
             next_pal_height.to_formatted_string(&Locale::en),
             blocks_to_next.to_formatted_string(&Locale::en)
             )?;
-        
+
         let block_url = format!(
             "https://mempool.space/block/{}",
             block["id"].to_string().replace('"', "")
@@ -162,11 +168,13 @@ fn last_pal_height(height: u64) -> u64 {
 async fn main() {
     nostr_bot::init_logger();
 
+    dotenv().expect(".env file not found");
+
     let secret = env::var("SECRET_KEY").unwrap();
     let keypair = nostr_bot::keypair_from_secret(&secret);
 
     let relays = env::var("RELAYS").unwrap();
-    let relays = serde_json::from_str::<Vec<&str>>(&relays).unwrap();
+    let relays = serde_json::from_str::<Vec<&str>>(relays.trim()).unwrap();
 
     let last_block_hash = mempool::block_tip_hash().await.unwrap();
 
@@ -224,8 +232,8 @@ async fn main() {
     };
 
     nostr_bot::Bot::new(keypair, relays, state)
-        .name("bitcoin_palindrome_bot")
-        .about("Bot publishing info about palindrome blocks. Using https://mempool.space/ API.")
+        .name("bitcoin palindrome bot")
+        .about("Bot publishing info about palindrome blocks. \n Using https://mempool.space/ API. \n Code at palindromeblock.lol")
         // .picture("https://upload.wikimedia.org/wikipedia/commons/5/50/Bitcoin.png")
         .command(
             Command::new("!uptime", wrap!(uptime))
