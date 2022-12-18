@@ -72,34 +72,43 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
         let block_height = block["height"].to_string().parse::<u64>()?;
         let next_pal_height = next_pal_height(block_height);
         let last_pal_height = last_pal_height(block_height);
+        let block_height_str = block_height.to_formatted_string(&Locale::en);
         match is_palindrome(block_height) {
             true => {
                 writeln!(content, "!!! Palindrome Block Mined !!!")?;
                 writeln!(
                     content,
-                    "{block_height } was just mined and is a palindrome :) !"
+                    "Block {block_height_str} was just mined and is a palindrome :) !"
                 )?;
             }
             false => {
                 writeln!(
                     content,
-                    "Block {block_height} was just mined block but it wasn't a palindrome :(",
+                    "Block {block_height_str} was just mined block but it wasn't a palindrome :(",
                 )?;
             }
         }
-        writeln!(content, "Txid: {}", block["id"])?;
+        writeln!(content)?;
+        
+        let blocks_since = block_height - last_pal_height;
         writeln!(
             content,
             "It has been {} blocks since the last palindrome block {}",
-            block_height - last_pal_height,
-            last_pal_height
+            blocks_since.to_formatted_string(&Locale::en),
+            last_pal_height.to_formatted_string(&Locale::en)
         )?;
+
         let blocks_to_next = next_pal_height - block_height;
         let min_to_next = blocks_to_next * 10;
+        let hours = min_to_next / 60;
+        let minutes = min_to_next % 60;
         writeln!(
             content,
-            "The next palindrome block will be {next_pal_height}, in {blocks_to_next} blocks roughly {min_to_next} minutes"
+            "The next palindrome block will be {}, in {} blocks roughly {hours} hours and {minutes} minutes",
+            next_pal_height.to_formatted_string(&Locale::en),
+            blocks_to_next.to_formatted_string(&Locale::en)
             )?;
+        
         let block_url = format!(
             "https://mempool.space/block/{}",
             block["id"].to_string().replace('"', "")
