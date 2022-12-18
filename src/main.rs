@@ -6,6 +6,8 @@ use num_format::{Locale, ToFormattedString};
 use std::env;
 use std::fmt::Write;
 
+use anyhow::Result;
+
 mod mempool;
 
 struct Info {
@@ -63,61 +65,58 @@ async fn uptime(event: Event, state: State) -> EventNonSigned {
     )
 }
 
-fn format_blocks(blocks: Vec<serde_json::Value>) -> EventNonSigned {
+fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
     let mut content = "".to_string(); // format!("Got {} newly mined block(s):\n", blocks.len());
     let mut tags = vec![vec!["t".to_string(), "bitcoin".to_string()]];
     for (i, block) in blocks.iter().enumerate() {
-        let block_height = block["height"].to_string().parse::<u64>().unwrap();
+        let block_height = block["height"].to_string().parse::<u64>()?;
         let next_pal_height = next_pal_height(block_height);
         let last_pal_height = last_pal_height(block_height);
         match is_palindrome(block_height) {
             true => {
+                writeln!(content, "!!! Palindrome Block Mined !!!")?;
                 writeln!(
                     content,
-                    "Got a newly mined palindrome block :) !: {block_height}"
-                )
-                .unwrap();
+                    "{block_height } was just mined and is a palindrome :) !"
+                )?;
             }
             false => {
                 writeln!(
                     content,
-                    "Got newly mined block but it wasn't a palindrome :( : {block_height}",
-                )
-                .unwrap();
+                    "Block {block_height} was just mined block but it wasn't a palindrome :(",
+                )?;
             }
         }
-        writeln!(content, "Txid: {}", block["id"]).unwrap();
+        writeln!(content, "Txid: {}", block["id"])?;
         writeln!(
             content,
             "It has been {} blocks since the last palindrome block {}",
             block_height - last_pal_height,
             last_pal_height
-        )
-        .unwrap();
+        )?;
         let blocks_to_next = next_pal_height - block_height;
         let min_to_next = blocks_to_next * 10;
         writeln!(
             content,
             "The next palindrome block will be {next_pal_height}, in {blocks_to_next} blocks roughly {min_to_next} minutes"
-        )
-        .unwrap();
+            )?;
         let block_url = format!(
             "https://mempool.space/block/{}",
             block["id"].to_string().replace('"', "")
         );
-        writeln!(content, "- {}", &block_url).unwrap();
+        writeln!(content, "- {}", &block_url)?;
         tags.push(vec!["r".to_string(), block_url]);
 
         if i + 1 < blocks.len() {
-            writeln!(content).unwrap();
+            writeln!(content)?;
         }
     }
-    EventNonSigned {
+    Ok(EventNonSigned {
         created_at: unix_timestamp(),
         kind: 1,
         content,
         tags,
-    }
+    })
 }
 
 fn is_palindrome(n: u64) -> bool {
@@ -158,7 +157,6 @@ async fn main() {
     let keypair = nostr_bot::keypair_from_secret(&secret);
 
     let relays = env::var("RELAYS").unwrap();
-
     let relays = serde_json::from_str::<Vec<&str>>(&relays).unwrap();
 
     let last_block_hash = mempool::block_tip_hash().await.unwrap();
@@ -185,7 +183,15 @@ async fn main() {
                     Ok((new_block_tip, new_blocks)) => {
                         state.lock().await.last_block_hash = new_block_tip;
                         if !new_blocks.is_empty() {
-                            let event = format_blocks(new_blocks);
+                            let event = match format_blocks(new_blocks) {
+                                Ok(event) => event,
+                                Err(_) => EventNonSigned {
+                                    created_at: unix_timestamp(),
+                                    kind: 1,
+                                    content: "I seem to be having some trouble, #[0] can you check on me?".to_string(),
+                                    tags: vec![vec!["p".to_string(), "04918dfc36c93e7db6cc0d60f37e1522f1c36b64d3f4b424c532d7c595febbc5".to_string()]]
+                                }
+                            };
                             sender.lock().await.send(event.sign(&keypair)).await;
                         }
                     }
@@ -195,8 +201,8 @@ async fn main() {
                             let event = EventNonSigned {
                                 created_at: unix_timestamp(),
                                 kind: 1,
-                                content: String::from("I'm unable to reach the API."),
-                                tags: vec![],
+                                content: String::from("I'm unable to reach the API. #[0] help me"),
+                                tags: vec![vec!["p".to_string(), "04918dfc36c93e7db6cc0d60f37e1522f1c36b64d3f4b424c532d7c595febbc5".to_string()]]
                             };
                             sender.lock().await.send(event.sign(&keypair)).await;
                             last_error_time = now;
