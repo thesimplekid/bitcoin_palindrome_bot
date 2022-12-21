@@ -89,10 +89,13 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
                 )?;
             }
             false => {
-                if next_pal_height - block_height > 10 {
-                    bail!("More then 10 blocks")
+                if block_height % 10 != 0 {
+                    bail!("Dont update")
                 }
-                writeln!(content, "Get excited less then 10 blocks till a palindrome",)?;
+                writeln!(
+                    content,
+                    "Block {block_height_str} was just mined block but it wasn't a palindrome :(",
+                )?;
             }
         }
         writeln!(content)?;
