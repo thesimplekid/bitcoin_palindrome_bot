@@ -3,10 +3,10 @@ use nostr_bot::{
     log::debug, tokio, unix_timestamp, wrap, Command, Event, EventNonSigned, FunctorType,
 };
 use num_format::{Locale, ToFormattedString};
-use std::env;
+use std::{env, any};
 use std::fmt::Write;
 
-use anyhow::Result;
+use anyhow::{Result, Error, bail};
 
 mod mempool;
 
@@ -89,9 +89,13 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
                 )?;
             }
             false => {
+
+                if next_pal_height - block_height > 10 {
+                    bail!("More then 10 blocks")
+                }
                 writeln!(
                     content,
-                    "Block {block_height_str} was just mined block but it wasn't a palindrome :(",
+                    "Get excited less then 10 blocks till a palindrome",
                 )?;
             }
         }
@@ -200,16 +204,12 @@ async fn main() {
                     Ok((new_block_tip, new_blocks)) => {
                         state.lock().await.last_block_hash = new_block_tip;
                         if !new_blocks.is_empty() {
-                            let event = match format_blocks(new_blocks) {
-                                Ok(event) => event,
-                                Err(_) => EventNonSigned {
-                                    created_at: unix_timestamp(),
-                                    kind: 1,
-                                    content: "I seem to be having some trouble, #[0] can you check on me?".to_string(),
-                                    tags: vec![vec!["p".to_string(), "04918dfc36c93e7db6cc0d60f37e1522f1c36b64d3f4b424c532d7c595febbc5".to_string()]]
-                                }
+                            match format_blocks(new_blocks) {
+                                Ok(event) => {
+                                sender.lock().await.send(event.sign(&keypair)).await;
+                                },
+                                Err(_) => ()
                             };
-                            sender.lock().await.send(event.sign(&keypair)).await;
                         }
                     }
                     Err(_e) => {
