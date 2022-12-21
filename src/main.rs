@@ -3,10 +3,10 @@ use nostr_bot::{
     log::debug, tokio, unix_timestamp, wrap, Command, Event, EventNonSigned, FunctorType,
 };
 use num_format::{Locale, ToFormattedString};
-use std::{env, any};
 use std::fmt::Write;
+use std::{any, env};
 
-use anyhow::{Result, Error, bail};
+use anyhow::{bail, Error, Result};
 
 mod mempool;
 
@@ -89,14 +89,10 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
                 )?;
             }
             false => {
-
                 if next_pal_height - block_height > 10 {
                     bail!("More then 10 blocks")
                 }
-                writeln!(
-                    content,
-                    "Get excited less then 10 blocks till a palindrome",
-                )?;
+                writeln!(content, "Get excited less then 10 blocks till a palindrome",)?;
             }
         }
         writeln!(content)?;
@@ -206,9 +202,9 @@ async fn main() {
                         if !new_blocks.is_empty() {
                             match format_blocks(new_blocks) {
                                 Ok(event) => {
-                                sender.lock().await.send(event.sign(&keypair)).await;
-                                },
-                                Err(_) => ()
+                                    sender.lock().await.send(event.sign(&keypair)).await;
+                                }
+                                Err(_) => (),
                             };
                         }
                     }
