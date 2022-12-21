@@ -1,6 +1,6 @@
 [package]
 name = "bitcoin_palindrome_bot"
-version = "0.1.0"
+version = "0.1.9"
 edition = "2021"
 license = "BSD 3-Clause"
 authors = ["thesimplekid"]

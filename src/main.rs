@@ -89,7 +89,7 @@ fn format_blocks(blocks: Vec<serde_json::Value>) -> Result<EventNonSigned> {
                 )?;
             }
             false => {
-                if block_height % 10 != 0 {
+                if block_height % 50 != 0 {
                     bail!("Dont update")
                 }
                 writeln!(
