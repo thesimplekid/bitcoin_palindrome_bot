@@ -150,7 +150,7 @@ fn is_palindrome(n: u64) -> bool {
 }
 
 fn next_pal_height(height: u64) -> u64 {
-    let mut x = height;
+    let mut x = height + 1;
 
     while !is_palindrome(x) {
         x += 1;
